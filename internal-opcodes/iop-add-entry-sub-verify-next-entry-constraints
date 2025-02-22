@@ -1,0 +1,35 @@
+// [ is_bid, new_entry_ref, next_entry_index ]
+// verify next entry constraints
+OP_OUTPUTTOKENCOMMITMENT
+<1> OP_SPLIT OP_SWAP OP_DROP
+<8> OP_SPLIT OP_DROP
+<4> OP_SPLIT
+// [ is_bid, next_entry_ref_block, next_entry_ref_index ]
+<2> OP_ROLL
+<4> OP_SPLIT
+// [ is_bid, next_entry_ref_block, next_entry_ref_index, new_entry_ref_block, new_entry_ref_index ]
+OP_OVER <4> OP_PICK
+// [ is_bid, next_entry_index, next_entry_ref_block, next_entry_ref_index, new_entry_ref_block, new_entry_ref_block, next_entry_ref_block ]
+<6> OP_ROLL // push is_bid on top
+OP_IF
+  // is bid, sort is in asc order
+  OP_LESSTHAN
+OP_ELSE
+  // is ask, sort is in desc order
+  OP_GREATERTHAN
+OP_ENDIF
+// [ next_entry_ref_block, next_entry_ref_index, new_entry_ref_block, new_entry_ref_index, is_in_another_block ]
+OP_IF // the next entry is in another block
+  <0>
+  OP_EQUALVERIFY // new_entry_ref_index should be zero
+  OP_DROP // the block is already verified in this guard
+  OP_DROP // no checks on the next_entry_ref_index
+  OP_DROP // the block is already verified in this guard
+OP_ELSE
+  OP_ROT
+  OP_SUB
+  <1>
+  OP_EQUALVERIFY // new_entry_ref_index - next_entry_ref_index should be equal to one
+  // [ next_entry_ref_block, new_entry_ref_block ]
+  OP_EQUALVERIFY // the block of the next entry should be equal to new entry
+OP_ENDIF

@@ -1,0 +1,24 @@
+<0x000000...0000> // entry (token_category + entry_type + entry_ref)
+<33> OP_SPLIT // token_category
+<1> OP_SPLIT // entry_type
+OP_SIZE <8> OP_EQUALVERIFY
+
+OP_INPUTINDEX <1> OP_SUB
+
+// [ expected_token_category, expected_entry_type, expected_entry_ref, entry_index ]
+OP_DUP
+OP_UTXOTOKENCATEGORY
+<4> OP_ROLL
+OP_EQUALVERIFY
+
+OP_UTXOTOKENCOMMITMENT
+<1> OP_SPLIT
+<8> OP_SPLIT OP_DROP
+// [ expected_entry_type, expected_entry_ref, entry_flags, entry_ref ]
+<2> OP_ROLL
+OP_EQUALVERIFY
+
+// [ expected_entry_type, entry_flags ]
+<0b1111000> OP_AND
+// [ expected_entry_type, entry_type ]
+OP_EQUALVERIFY

@@ -1,0 +1,691 @@
+<0x0000000000...0000> // auth_pkh
+<0x0000000000...0000> // payout locking
+<0x0000000000...0000> // carry's locking
+IOP_ORDERBOOK_CHECK_HAS_DELEGATED_PROGRAM
+OP_IF
+  // push delegated program id
+  <0x__00__> OP_UTXOTOKENCOMMITMENT
+  <1> OP_SPLIT OP_NIP
+  <1> OP_SPLIT OP_DROP
+  <0x99> // remove-entry item id
+  OP_EQUAL
+  OP_INPUTINDEX <0x__02__>
+  OP_EQUAL
+  OP_AND
+  OP_IF
+    // authenticate
+    <4> OP_ROLL <4> OP_ROLL // roll the auth arguments on top [ signature, public_key ]
+    OP_DUP OP_HASH160 OP_OVER OP_EQUALVERIFY OP_CHECKSIGVERIFY
+    // verify the withdraw
+    // [ payout_locking, carry_locking ]
+    <0x__03__> OP_UTXOBYTECODE
+    OP_EQUALVERIFY
+    <0x__03__> OP_OUTPUTBYTECODE
+    OP_EQUALVERIFY
+
+    <0x__02__> OP_UTXOTOKENCOMMITMENT
+    <17> OP_SPLIT OP_NIP
+    <8> OP_SPLIT // carry_bch_amount
+    <8> OP_SPLIT // carry_token_amount
+    OP_DROP // drop the fee
+    // [ ..., carry_bch_amount, carry_token_amount ]
+
+    OP_DUP <0> OP_GREATERTHAN
+    OP_IF
+      // { push carry's token category
+        <0x__00__> OP_UTXOTOKENCOMMITMENT // orderbook commitment
+        <1> OP_SPLIT OP_SWAP OP_DROP
+        <32> OP_SPLIT OP_DROP
+      // }
+    OP_ELSE
+      <0>
+    OP_ENDIF
+    <0x__03__> OP_OUTPUTTOKENCATEGORY
+    OP_EQUALVERIFY
+
+    <0x__03__> OP_UTXOTOKENAMOUNT
+    OP_EQUALVERIFY
+
+    <0x__03__> OP_UTXOVALUE
+    OP_EQUALVERIFY
+
+    <0x__03__> OP_UTXOTOKENAMOUNT
+    <0x__03__> OP_OUTPUTTOKENAMOUNT
+    OP_GREATERTHANOREQUAL
+    OP_VERIFY
+
+    <0x__02__> OP_UTXOVALUE
+    <0x__03__> OP_UTXOVALUE
+    OP_ADD
+    <0x__03__> OP_OUTPUTVALUE
+    OP_GREATERTHANOREQUAL
+    OP_VERIFY
+  OP_ELSE
+    OP_2DROP OP_DROP
+  OP_ENDIF
+OP_ELSE
+  // not a delegated program
+  // execute
+  // required argument_0 = iteration_summary
+  // pull withdraw_pkh
+  <2> OP_ROLL OP_DROP
+  // { verify the first io is the orderbook
+    <0x__00__> OP_UTXOTOKENCATEGORY
+    OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+    OP_EQUALVERIFY
+
+    // verify the utxo type
+    <0x__00__> OP_UTXOTOKENCOMMITMENT
+    <1> OP_SPLIT OP_DROP
+    <0b11110000>
+    OP_AND
+    <0b00010000> // orderbook
+    OP_EQUALVERIFY
+  // }
+
+  // { verify orderbook transaction summary (not needed)
+    <0x__00__> OP_INPUTBYTECODE
+    <41> OP_SPLIT OP_DROP
+    // data type (flags, bid_first_index, bid_last_index, bid_bch_balance, bid_token_balance, bids_fee, 
+    //                   ask_first_index, ask_last_index, ask_bch_balance, ask_token_balance, asks_fee)
+    // (1 + 2 + 2 + 8 + 8 + 8 + 2 + 2 + 8 + 8 + 8)
+    <1> OP_SPLIT
+    OP_SWAP <0x39> OP_EQUALVERIFY
+    OP_DROP
+  // }
+
+  OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT
+  <1> OP_SPLIT
+  <8> OP_SPLIT
+  OP_SWAP <4> OP_SPLIT OP_SWAP OP_DROP
+  OP_SWAP
+  <8> OP_SPLIT
+  <8> OP_SPLIT
+  <8> OP_SPLIT
+  OP_DROP // drop the fee
+
+  OP_INPUTINDEX <1> OP_ADD
+  // [ ...args, flags, price, expected_previous_entry_ref, carry_bch_amount, carry_token_amount, next_index ]
+
+  // { is last io
+    OP_DUP
+    OP_TXOUTPUTCOUNT
+    OP_EQUAL
+  // }
+  OP_IF
+    OP_2DROP OP_DROP
+    <-1> <-1>
+    // [ ...args, flags, price, expected_previous_entry_ref, carry_index, previous_entry_index ]
+  OP_ELSE
+    // { next io is an entry
+      OP_DUP OP_UTXOTOKENCATEGORY
+      OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+      OP_EQUAL
+    // }
+    OP_IF
+      OP_ROT OP_ROT OP_2DROP
+      <-1> OP_SWAP
+      // [ ...args, flags, price, expected_previous_entry_ref, carry_index, previous_entry_index ]
+    OP_ELSE
+      // [ ...args, flags, price, expected_previous_entry_ref, carry_bch_amount, carry_token_amount, carry_index ]
+      // verify the carry utxo
+      OP_DUP
+      OP_UTXOBYTECODE
+      <7> OP_PICK // carry locking
+      OP_EQUALVERIFY
+
+      OP_OVER
+      <0>
+      OP_GREATERTHAN // has tokens
+      OP_IF
+        OP_DUP
+        OP_UTXOTOKENCATEGORY
+        // { push carry's token category
+          <0x__00__> OP_UTXOTOKENCOMMITMENT
+          <1> OP_SPLIT OP_SWAP OP_DROP
+          <32> OP_SPLIT OP_DROP
+        // }
+        OP_EQUALVERIFY
+      OP_ENDIF
+
+      OP_DUP
+      OP_UTXOTOKENAMOUNT
+      OP_ROT
+      OP_EQUALVERIFY
+
+      OP_DUP
+      OP_UTXOVALUE
+      OP_ROT
+      OP_EQUALVERIFY
+      // [ ...args, flags, price, expected_previous_entry_ref, carry_index ]
+      OP_DUP <1> OP_ADD // next io
+      // { next io is an entry
+        OP_DUP OP_UTXOTOKENCATEGORY
+        OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+        OP_EQUAL
+      // }
+      OP_NOTIF
+        OP_DROP <-1>
+      OP_ENDIF
+      // [ ...args, flags, price, expected_previous_entry_ref, carry_index, previous_entry_index ]
+    OP_ENDIF
+  OP_ENDIF
+
+  // { push this_end_index, other_start_index
+    <0x__00__> OP_INPUTBYTECODE
+    <41> OP_SPLIT OP_DROP
+    <1> OP_SPLIT
+    OP_SWAP <0x39> OP_EQUALVERIFY
+    // { push is_bid
+      <6> OP_PICK // push flags
+      <0b11110000> OP_AND // extract type from the flags
+      <0b00100000>
+      OP_EQUAL // is_bid
+    // }
+    OP_DUP
+    OP_IF
+      // verify current index is greater than or equal to bid_start_index
+      // push bid_last_index & ask_start_index
+      <1> OP_SPLIT OP_SWAP OP_DROP
+      <2> OP_SPLIT OP_SWAP OP_BIN2NUM
+      // [ ..., bid_start_index ]
+      OP_INDEXINDEX OP_GREATERTHANOREQUAL
+      OP_VERIFY
+      <2> OP_SPLIT
+      <24> OP_SPLIT OP_SWAP OP_DROP
+      <2> OP_SPLIT OP_DROP
+      OPBIN2NUM OP_SWAP OP_BIN2NUM OP_SWAP
+    OP_ELSE
+      // verify current index is greater than or equal to ask_start_index
+      // push ask_last_index & bid_start_index
+      <1> OP_SPLIT OP_SWAP OP_DROP
+      <2> OP_SPLIT
+      <26> OP_SPLIT OP_SWAP OP_DROP
+      <2> OP_SPLIT OP_SWAP OP_BIN2NUM
+      // [ ..., ask_start_index ]
+      OP_INPUTINDEX OP_GREATERTHANOREQUAL
+      OP_VERIFY
+      <2> OP_SPLIT OP_DROP
+      OPBIN2NUM OP_SWAP OP_BIN2NUM
+    OP_ENDIF
+  // }
+  // [ ...args, flags, price, expected_previous_entry_ref, carry_index, other_entry_index, is_bid, this_end_index, other_start_index ]
+
+  // verify the validity of the other_entry and replace it with previous_entry_index
+  OP_DUP
+  <0> OP_GREATERTHAN
+  OP_SWAP
+  <4> OP_PICK
+  OP_EQUAL
+  OP_AND
+  OP_IF
+    // verify the other entry is at the head
+    OP_ROT // other_entry_index
+    OP_UTXOTOKENCOMMITMENT
+    <1> OP_SPLIT OP_DROP
+    <0b0000001>
+    OP_AND
+    <0b0000001>
+    OP_EQUALVERIFY
+    <-1>
+    OP_ROT OP_ROT
+  OP_ENDIF
+  // [ ...args, flags, price, expected_previous_entry_ref, carry_index, previous_entry_index, is_bid, this_end_index ]
+
+  // verify this_end_index is greater than zero
+  OP_DUP <0> OP_GREATERTHAN
+  OP_EQUALVERIFY
+
+  OP_DUP
+  OP_INPUTINDEX
+  OP_EQUAL
+  OP_IF
+    OP_DROP // drop this_end_index
+    // verify the output of end index is either the head or this side of orderbook should become empty
+    OP_INPUTINDEX
+    OP_OUTPUTTOKENCOMMITMENT
+    <1> OP_SPLIT OP_DROP
+    <0b00000001> // head flag
+    OP_EQUAL
+    OP_NOTIF
+      <0x__00__> OP_OUTPUTTOKENCOMMITMENT
+      <1> OP_SPLIT OP_DROP
+      OP_SWAP // is_bid
+      OP_IF
+        <0b1111110>
+      OP_ELSE
+        <0b1111101>
+      OP_ENDIF
+      OP_AND
+      <0> OP_EQUAL OP_NOT
+      OP_VERIFY
+    OP_ENDIF
+  OP_ELSE
+    // verify this entry no longer lives
+    OP_INPUTINDEX OP_OUTPUTBYTECODE
+    <OP_RETURN>
+    OP_EQUALVERIFY
+    // verify input index is less than this_end_index
+    OP_INPUTINDEX OP_LESSTHAN
+    OP_VERIFY
+    OP_DROP // drop is_bid
+  OP_ENDIF
+
+  // [ ...args, flags, price, expected_previous_entry_ref, carry_index, previous_entry_index ]
+  OP_OVER
+  OP_DUP
+  <0> OP_GREATERTHANOREQUAL
+  OP_IF
+    // { push token & bch balance
+      OP_DUP
+      OP_UTXOVALUE
+      OP_OVER
+      OP_OUTPUTVALUE
+      OP_SUB
+
+      OP_SWAP
+      OP_DUP
+      OP_UTXOTOKENAMOUNT
+      OP_SWAP
+      OP_OUTPUTTOKENAMOUNT
+      OP_SUB
+
+      // { push trade fee
+        OP_DUP OP_ABS
+        <100000000> OP_MUL
+        <5> OP_PICK // push price
+        OP_DIV
+        // { calculate the fee
+          OP_2DUP OP_SWAP
+          <2> OP_SPLIT
+          // [ ..., amount, numerator, denominator ]
+          OP_BIN2NUM OP_ROT OP_ROT OP_BIN2NUM OP_MUL OP_SWAP OP_DIV
+        // }
+      // }
+
+      // [ ..., carry_bch_balance, carry_token_balance, trade_fee ]
+    // }
+  OP_ELSE
+    <0> <0> <0>
+  OP_ENDIF
+
+  <3> OP_ROLL
+  // [ ..., carry_bch_balance, carry_token_balance, trade_fee, previous_entry_index ]
+  OP_DUP
+  <0> OP_GREATERTHANOREQUAL
+  OP_IF
+    // verify the previous_entry_index is a valid entry
+    // { verify the balance in the iteration_summary matches
+      OP_DUP
+      OP_INPUTBYTECODE
+      <1> OP_SPLIT
+      OP_SWAP <0x18> OP_EQUALVERIFY
+      <8> OP_SPLIT
+      <8> OP_SPLIT
+
+      // [ ..., carry_bch_balance, carry_token_balance, trade_fee, previous_entry_index, previous_iteration_bch_balance, previous_iteration_token_balance, previous_iteration_accumulated_fees ]
+
+      // push expected_accumulated_fees
+      OP_BIN2NUM <4> OP_PICK OP_ADD
+      // push expected_iteration_bch_balance
+      OP_ROT OP_BIN2NUM <6> OP_ROLL OP_ADD
+      // push expected_iteration_token_balance
+      OP_ROT OP_BIN2NUM <5> OP_ROLL OP_ADD
+      // [ ..., trade_fee, previous_entry_index, expected_iteration_accumulated_fees, expected_iteration_bch_balance, expected_iteration_token_balance ]
+      <11> OP_PICK // push this iteration summary
+      <1> OP_SPLIT OP_SWAP OP_DROP
+      <8> OP_SPLIT
+      <8> OP_SPLIT
+      // [ ..., trade_fee, previous_entry_index, expected_iteration_accumulated_fees, expected_iteration_bch_balance, expected_iteration_token_balance, iteration_bch_balance, iteration_token_balance, interation_accumulated_fees ]
+      OP_BIN2NUM
+      <5> OP_ROLL
+      OP_EQUALVERIFY
+      OP_BIN2NUM
+      <2> OP_ROLL
+      OP_EQUALVERIFY
+      OP_BIN2NUM
+      OP_EQUALVERIFY
+      // [ ..., trade_fee, previous_entry_index ]
+    // }
+
+    OP_UTXOTOKENCOMMITMENT
+    <1> OP_SPLIT
+    <8> OP_SPLIT OP_DROP
+    // [ ...args, flags, price, expected_previous_entry_ref, carry_index, trade_fee, previous_entry_flags, previous_entry_ref ]
+
+    // same enty type, verify it's the previous_entry
+    <4> OP_ROLL // roll expected_previous_entry_ref
+    OP_EQUALVERIFY // the previous_entry_ref should match
+
+    // [ ..., previous_flags ]
+    // the item's utxo type should be equal
+    <0b11110000> OP_AND // extract type from the flags
+    <5> OP_PICK // this flags
+    <0b11110000> OP_AND // extract type from the flags
+    OP_EQUALVERIFY
+    // [ ...args, flags, price, carry_index, trade_fee ]
+  OP_ELSE
+    OP_DROP
+    // [ ..., carry_bch_balance, carry_token_balance, trade_fee ]
+    // { verify the balance in the iteration_summary matches
+      <9> OP_PICK // push this iteration summary
+      <1> OP_SPLIT OP_SWAP OP_DROP
+      <8> OP_SPLIT
+      <8> OP_SPLIT
+      // [ ..., carry_bch_balance, carry_token_balance, trade_fees, iteration_bch_balance, iteration_token_balance, interation_accumulated_fees ]
+      OP_BIN2NUM
+      <3> OP_PICK
+      OP_EQUALVERIFY
+      OP_BIN2NUM
+      <3> OP_ROLL
+      OP_EQUALVERIFY
+      OP_BIN2NUM
+      OP_ROT
+      OP_EQUALVERIFY
+      // [ ..., trade_fee ]
+    // }
+    OP_ROT OP_DROP // drop expected_previous_entry_ref
+  OP_ENDIF
+  OP_SWAP
+  // [ ...args, flags, price, trade_fee, carry_index ]
+  OP_DUP
+  <0> OP_GREATERTHANOREQUAL
+  OP_IF
+    // verify the trade
+    <3> OP_ROLL
+    // {
+      <0b11110000> OP_AND // extract type from the flags
+      <0b00100000> // bid order entry
+      OP_EQUAL // push is_bid
+    // }
+    // [ ...args, price, trade_fee, carry_index, is_bid ]
+    OP_IF
+      // it's a bid
+      // { is the trade completed
+        OP_DUP
+        OP_UTXOTOKENAMOUNT
+        OP_OVER
+        OP_OUTPUTTOKENAMOUNT
+        OP_SUB
+        // [ ..., carry_index, acquired_tokens ]
+        <1> OP_ADD // add one more
+        <100000000> OP_MUL
+        <3> OP_PICK // push price
+        OP_DIV
+        // [ ..., carry_index, plus_one_required_bch ]
+        // { calculate the fee
+          OP_DUP
+          OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT
+          <33> OP_SPLIT OP_SWAP OP_DROP
+          <2> OP_SPLIT
+          // [ ..., amount, numerator, denominator ]
+          OP_BIN2NUM OP_ROT OP_ROT OP_BIN2NUM OP_MUL OP_SWAP OP_DIV
+        // }
+        OP_ADD
+        // [ ..., carry_index, plus_one_required_bch_with_fee ]
+        OP_SWAP
+        OP_UTXOVALUE
+        OP_INPUTINDEX OP_UTXOVALUE OP_SUB // deduct entry's bch amount as a buffer bch required
+        // available_bch < plus_one_required_bch_with_fee
+        OP_LESSTHAN
+      // }
+      // [ ...args, price, trade_fee, carry_index, completed ]
+
+      // { push (bids_are_completed) from orderbook state flags
+        <0x__00__> OP_INPUTBYTECODE
+        <2> OP_SPLIT OP_DROP
+        <1> OP_SPLIT OP_SWAP OP_DROP
+        <0b00000001> OP_AND
+        <0b00000001> OP_EQUAL
+      // }
+      OP_IF
+        <1> 
+      OP_ELSE
+        // { has more room to acquire more tokens
+          <6> OP_PICK // iteration_summary
+          <8> OP_SPLIT OP_SWAP OP_DROP
+          <8> OP_SPLIT OP_DROP
+          OP_BIN2NUM
+          // [ ..., iteration_token_balance ]
+          // { push ask_token_balance from orderbook
+            <0x__00__> OP_INPUTBYTECODE
+            <50> OP_SPLIT OP_DROP
+            <42> OP_SPLIT OP_SWAP OP_DROP
+            OP_BIN2NUM
+          // }
+          OP_GREATERTHAN
+        // }
+      OP_ENDIF
+      OP_IF
+        // verify the trade is completed
+        OP_DUP OP_VERIFY
+      OP_ENDIF
+
+      // [ ...args, price, trade_fee, carry_index, completed ]
+
+      // verify the trade's sanity
+      OP_OVER // push carry_index
+      OP_DUP
+      OP_UTXOVALUE
+      OP_SWAP
+      OP_OUTPUTVALUE
+      OP_SUB
+      <3> OP_ROLL // trade_fee
+      OP_SUB
+      // [ ...args, price, carry_index, completed, supply ]
+
+      <2> OP_PICK OP_DUP
+      OP_UTXOTOKENAMOUNT
+      OP_SWAP
+      OP_OUTPUTTOKENAMOUNT
+      OP_SUB
+      <100000000> OP_MUL
+      <4> OP_ROLL // price
+      OP_DIV
+      // [ ...args, carry_index, completed, supply, required_supply ]
+      OP_LESSTHANOREQUAL
+      OP_VERIFY
+    OP_ELSE
+      // it's an ask
+      // [ ...args, price, trade_fee, carry_index ]
+
+      // { is the trade completed
+        OP_DUP
+        OP_OUTPUTTOKENAMOUNT
+        <0> OP_GREATERTHAN
+        OP_IF
+          OP_DUP
+          OP_UTXOTOKENAMOUNT
+          // [ ..., carry_index, available_tokens ]
+          <100000000> OP_MUL
+          <3> OP_PICK // push price
+          OP_DIV
+          // [ ..., carry_index, max_demand ]
+          // { calculate the fee
+            OP_DUP
+            OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT
+            <33> OP_SPLIT OP_SWAP OP_DROP
+            <2> OP_SPLIT
+            // [ ..., amount, numerator, denominator ]
+            OP_BIN2NUM OP_ROT OP_ROT OP_BIN2NUM OP_MUL OP_SWAP OP_DIV
+          // }
+          OP_SUB
+          // [ ..., carry_index, max_demand_excluding_fee ]
+          OP_SWAP
+          OP_DUP
+          OP_OUTPUTVALUE
+          OP_INPUTINDEX OP_UTXOVALUE OP_SUB // deduct entry's bch amount as a buffer bch required
+          OP_SWAP
+          OP_UTXOVALUE
+          OP_SUB
+          // [ ..., carry_index, max_demand_excluding_fee, current_demand ]
+          // current_demand >= max_demand_excluding_fee
+          OP_GREATERTHANOREQUAL
+        OP_ELSE
+          <1>
+        OP_ENDIF
+      // }
+      // [ ...args, price, trade_fee, carry_index, completed ]
+      // { push (asks_are_completed) from orderbook state flags
+        <0x__00__> OP_INPUTBYTECODE
+        <2> OP_SPLIT OP_DROP
+        <1> OP_SPLIT OP_SWAP OP_DROP
+        <0b00000010> OP_AND
+        <0b00000010> OP_EQUAL
+      // }
+      OP_IF
+        <1> 
+      OP_ELSE
+        // { has more room to supply more tokens
+          <6> OP_PICK // iteration_summary
+          <8> OP_SPLIT OP_SWAP OP_DROP
+          <8> OP_SPLIT OP_DROP
+          OP_BIN2NUM
+          // [ ..., iteration_token_balance ]
+          // { push bid_token_balance * -1
+            <0x__00__> OP_INPUTBYTECODE
+            <21> OP_SPLIT OP_DROP
+            <13> OP_SPLIT OP_SWAP OP_DROP
+            OP_BIN2NUM <-1> OP_MUL
+          // }
+          OP_GREATERTHAN
+        // }
+      OP_ENDIF
+      OP_IF
+        // verify the trade is completed
+        OP_DUP OP_VERIFY
+      OP_ENDIF
+
+      // [ ...args, price, trade_fee, carry_index, completed ]
+      // verify the trade's sanity
+      OP_OVER // push carry_index
+      OP_DUP
+      OP_UTXOTOKENAMOUNT
+      OP_SWAP
+      OP_OUTPUTTOKENAMOUNT
+      OP_SUB
+      // [ ..., supply ]
+      <100000000> OP_MUL
+      <4> OP_ROLL // price
+      OP_DIV
+      // [ ..., completed, demand ]
+      <3> OP_ROLL // roll trade_fee
+      OP_SUB
+      // [ ..., completed, demand_excluding_fee ]
+
+      <2> OP_PICK // push carry_index
+      OP_DUP
+      OP_OUTPUTVALUE
+      OP_SWAP
+      OP_UTXOVALUE
+      OP_SUB
+      <2> OP_PICK // completed
+      OP_IF
+        OP_INPUTINDEX OP_UTXOVALUE OP_SUB // deduct entry's bch amount from the trade
+      OP_ENDIF
+      // [ ..., carry_index, completed, demand_excluding_fee, acquired_bch ]
+      OP_GREATERTHANOREQUAL
+      OP_VERIFY
+
+    OP_ENDIF
+    // { verify the carry's output
+      OP_OVER
+      OP_OUTPUTTOKENAMOUNT
+      <0> OP_GREATERTHAN
+      OP_IF
+        OP_OVER OP_OUTPUTTOKENCATEGORY
+        // { push carry's token category
+          <0x__00__> OP_UTXOTOKENCOMMITMENT
+          <1> OP_SPLIT OP_SWAP OP_DROP
+          <32> OP_SPLIT OP_DROP
+        // }
+        OP_EQUALVERIFY
+      OP_ELSE
+        OP_OVER OP_OUTPUTTOKENCATEGORY
+        <0>
+        OP_EQUALVERIFY
+      OP_ENDIF
+
+      OP_OVER OP_OUTPUTTOKENCOMMITMENT
+      <0>
+      OP_EQUALVERIFY
+
+      OP_DUP
+      OP_IF
+        // completed
+        OP_OVER
+        OP_OUTPUTBYTECODE
+        <3> OP_ROLL // push payout locking
+        OP_EQUALVERIFY
+      OP_ELSE
+        OP_OVER
+        OP_UTXOBYTECODE
+        <2> OP_PICK
+        OP_OUTPUTBYTECODE
+        OP_EQUALVERIFY
+      OP_ENDIF
+    // }
+
+    // [ ..., carry_index, completed ]
+    OP_DUP
+    OP_IF
+      // completed, verify the entry's output commitment
+      OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT
+      OP_SWAP
+      <0b00000001> // add head flag
+      OP_OR
+      OP_SWAP
+      <16> OP_SPLIT OP_DROP
+      // [ ..., carry_index, completed, commitment__0_1, commitment__1_17 ]
+      <3> OP_ROLL
+      OP_DUP
+      OP_OUTPUTVALUE
+      <8> OP_NUM2BIN
+      OP_SWAP
+      OP_OUTPUTTOKENAMOUNT
+      <8> OP_NUM2BIN
+      OP_CAT OP_CAT OP_CAT OP_CAT
+      // [ ..., completed, expected_output_commitment ]
+      OP_INPUTINDEX OP_OUTPUTTOKENCOMMITMENT
+      OP_EQUALVERIFY
+    OP_ENDIF
+    // [ iteration_summary, completed ]
+  OP_ELSE
+    // [ ...args, flags, price, trade_fee, carry_index ]
+    OP_2DROP OP_2DROP
+    OP_DROP // drop payout locking
+    <0>
+    // [ iteration_summary, completed ]
+  OP_ENDIF
+  OP_SWAP OP_DROP
+  // [ completed ]
+  OP_IF
+    OP_INPUTINDEX OP_OUTPUTBYTECODE
+    <OP_RETURN>
+    OP_EQUALVERIFY
+
+    OP_INPUTINDEX OP_OUTPUTTOKENCATEGORY
+    <0>
+    OP_EQUALVERIFY
+
+    OP_INPUTINDEX OP_OUTPUTVALUE
+    <0>
+    OP_EQUALVERIFY
+
+  OP_ELSE
+    OP_INPUTINDEX OP_UTXOBYTECODE
+    OP_INPUTINDEX OP_OUTPUTBYTECODE
+    OP_EQUALVERIFY
+
+    OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+    OP_INPUTINDEX OP_OUTPUTTOKENCATEGORY
+    OP_EQUALVERIFY
+
+    OP_INPUTINDEX OP_UTXOVALUE
+    OP_INPUTINDEX OP_OUTPUTVALUE
+    OP_EQUALVERIFY
+
+  OP_ENDIF
+
+OP_ENDIF

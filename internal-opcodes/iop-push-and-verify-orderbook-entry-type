@@ -1,0 +1,10 @@
+// [ entry_flags ]
+<0b11110000>
+OP_AND
+OP_DUP OP_DUP
+<0b00100000> // bid order entry
+OP_EQUAL
+OP_SWAP <0b00110000> // ask order entry
+OP_EQUAL
+OP_OR
+OP_VERIFY

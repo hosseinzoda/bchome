@@ -1,0 +1,71 @@
+// [ entry_type, entry_start, entry_end, bch_balance, token_balance, fee_paid ]
+
+<4> OP_ROLL <4> OP_ROLL
+
+OP_2DUP OP_GREATERTHANOREQUAL OP_VERIFY
+
+OP_OVER OP_UTXOTOKENCATEGORY
+OP_OVER OP_UTXOTOKENCATEGORY
+OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+OP_EQUALVERIFY
+OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+OP_EQUALVERIFY
+
+OP_SWAP OP_UTXOTOKENCOMMITMENT
+<1> OP_SPLIT OP_DROP
+
+OP_DUP
+<0b11110000>
+OP_AND
+<3> OP_PICK
+OP_EQUALVERIFY
+
+<0b00000001>
+OP_AND
+<0b00000001>
+OP_EQUALVERIFY
+
+// [ entry_type, bch_balance, token_balance, fee_paid, entry_end ]
+
+OP_DUP OP_INPUTBYTECODE
+<1> OP_SPLIT
+OP_SWAP <0x18> OP_EQUALVERIFY
+<8> OP_SPLIT
+<8> OP_SPLIT
+OP_SIZE <8> OP_EQUALVERIFY
+
+// [ entry_type, bch_balance, token_balance, fee_paid, entry_end, recorded_bch_balance, recorded_token_balance, recorded_fee_paid ]
+OP_BIN2NUM
+<4> OP_ROLL
+OP_EQUALVERIFY
+
+OP_BIN2NUM
+<3> OP_ROLL
+OP_EQUALVERIFY
+
+OP_BIN2NUM
+<2> OP_ROLL
+OP_EQUALVERIFY
+// [ entry_type, entry_end ]
+
+OP_DUP OP_UTXOTOKENCOMMITMENT
+<1> OP_SPLIT OP_DROP
+
+OP_DUP
+<0b11110000>
+OP_AND
+<2> OP_ROLL
+OP_EQUALVERIFY
+
+
+
+<0b00000010>
+OP_AND
+<0b00000010> // is at the tail
+OP_EQUAL
+OP_SWAP // end_index
+OP_OUTPUTBYTECODE
+<OP_RETURN>
+OP_EQUAL
+OP_AND
+// [ list_becomes_empty ]

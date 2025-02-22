@@ -1,0 +1,525 @@
+<0x0000000000...0000> // entry's locking redeem script
+<0x0000000000...0000> // carry's locking redeem script
+// argument#0 transaction summary
+IOP_ORDERBOOK_CHECK_HAS_DELEGATED_PROGRAM
+OP_IF
+  <0x__00__> OP_UTXOTOKENCOMMITMENT
+  <1> OP_SPLIT OP_NIP
+  <1> OP_SPLIT OP_DROP // program id
+  <101> // id of the modify-add-entry-parameters method
+  OP_EUQLVERIFY
+OP_ELSE
+
+  // program io index =  0x__00__
+  // orderbook io index =  0x__01__
+  // new entry output index =  0x__02__
+  // entry's carry output index =  0x__03__
+  // previous entry io index =  null | (output: 0x__04__, input = output - 2)
+  // next entry io index =  null | (output: 0x__04__ , input = output - 2) | (output: 0x__05__ , input = output - 2)
+
+
+  OP_INPUTINDEX <0x__00__> OP_EQUALVERIFY
+  // { validate add-entry program utxo
+    <0x__00__> OP_UTXOTOKENCATEGORY
+    <0x__00__> OP_OUTPUTTOKENCATEGORY
+    OP_EQUALVERIFY
+    <0x__00__> OP_UTXOTOKENCOMMITMENT
+    <0x__00__> OP_OUTPUTTOKENCOMMITMENT
+    OP_EQUALVERIFY
+    <0x__00__> OP_UTXOBYTECODE
+    <0x__00__> OP_OUTPUTBYTECODE
+    OP_EQUALVERIFY
+  // }
+
+  // { validate order-book-utxo
+    // { validate the category & type of the utxo
+      <0x__00__> OP_UTXOTOKENCATEGORY
+      <32> OP_SPLIT OP_DROP <0x01> OP_CAT
+      <0x__01__> OP_UTXOTOKENCATEGORY
+      OP_EQUALVERIFY
+
+      // verify the utxo type
+      <0x__01__> OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT OP_DROP
+      <0b11110000>
+      OP_AND
+      <0b00010000> // orderbook
+      OP_EQUALVERIFY
+    // }
+    <0x__01__> OP_UTXOTOKENCATEGORY
+    <0x__01__> OP_OUTPUTTOKENCATEGORY
+    OP_EQUALVERIFY
+    <0x__01__> OP_UTXOBYTECODE
+    <0x__01__> OP_OUTPUTBYTECODE
+    OP_EQUALVERIFY
+    <0x__01__> OP_UTXOVALUE
+    <0x__01__> OP_OUTPUTVALUE
+    OP_EQUALVERIFY
+  // }
+
+  <0x__02__> // new entry index
+  OP_OUTPUTTOKENCOMMITMENT
+  <1> OP_SPLIT
+  <8> OP_SPLIT
+  <8> OP_SPLIT OP_DROP
+
+  // [ ...args, new_entry_flags, new_entry_ref, new_entry_previous_ref ]
+
+  // [ verify block/price is greater than zero
+    OP_OVER
+    <4> OP_SPLIT OP_DROP
+    OP_BIN2NUM
+    <0>
+    OP_GREATERTHAN OP_VERIFY
+  // ]
+
+  // { verify new entry utxo type & push is_bid
+    // new entry index & block validty check
+    <2> OP_PICK
+    IOP_PUSH_AND_VERIFY_ORDERBOOK_ENTRY_TYPE
+    <0b00100000> // bid order entry
+    OP_EQUAL // push is_bid
+  // }
+
+  // [ ...args, new_entry_flags, new_entry_ref, new_entry_previous_ref, is_bid ]
+
+  // { verify orderbook's output is not empty
+    <0x__01__> // orderbook index
+    OP_UTXOTOKENCOMMITMENT
+    <1> OP_SPLIT
+    OP_SWAP
+    // remove the empty flag
+    <2> OP_PICK // is_bid
+    OP_IF
+      <0b1111110>
+    OP_ELSE
+      <0b1111101>
+    OP_ENDIF
+    OP_AND
+    OP_SWAP
+    OP_CAT
+    <0x__01__> // ordebook index
+    OP_OUTPUTTOKENCOMMITMENT
+    OP_EQUALVERIFY
+  // }
+
+  // { re-order the stack
+    // [ ..., new_entry_flags, new_entry_ref, new_entry_previous_ref, is_bid ]
+    OP_ROT OP_ROT 
+    // [ ..., new_entry_flags, is_bid, new_entry_ref, new_entry_previous_ref ]
+    <3> OP_ROLL
+    // [ ..., is_bid, new_entry_ref, new_entry_previous_ref, new_entry_flags ]
+    OP_ROT OP_ROT
+  // }
+  // [ ...args, is_bid, new_entry_flags, new_entry_ref, new_entry_previous_ref ]
+
+  <2> OP_PICK
+  OP_DUP
+  <0b0000010>
+  OP_AND
+  <0b0000010>
+  OP_EQUAL
+  OP_IF
+    # is at the tail of the linked list
+    // [ ..., new_entry_previous_ref ]
+    OP_SIZE <0>
+    OP_EQUALVERIFY
+    OP_DROP
+    <-1>
+  OP_ELSE
+    # should have previous entry
+
+    // verify the size of new entry's commitment
+    // [ ..., recorded_previous_ref ]
+    OP_SIZE <8>
+    OP_EQUALVERIFY
+
+    <0x__04__> // previous entry index
+
+    // { verify the new entry points to previous entry
+      OP_DUP <2> OP_SUB
+      OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT
+      <8> OP_SPLIT
+      // [ ..., recorded_previous_ref, previous_entry_index, previous_entry_flags, previous_entry_ref, previous_entry_commitment__9 ]
+      OP_OVER
+      <5> OP_ROLL
+      OP_EQUALVERIFY
+      // [ ..., previous_entry_index, previous_entry_flags, previous_entry_ref, previous_entry_commitment__9 ]
+
+      // { verify the output commitment of the previous entry
+        OP_ROT
+        // remove the head flag
+        <0b1111110>
+        OP_AND
+        OP_ROT OP_ROT
+        OP_CAT OP_CAT
+        OP_OVER
+        OP_OUTPUTTOKENCOMMITMENT
+        OP_EQUALVERIFY
+     // }
+   // }
+  OP_ENDIF
+  // [ ...args, is_bid, new_entry_flags, new_entry_ref, previous_entry_index ]
+  <2> OP_ROLL
+  <0b0000001>
+  OP_AND
+  <0b0000001>
+  OP_EQUAL
+  OP_IF
+    # is at the head of the linked list
+    <-1>
+    OP_SWAP OP_DUP
+    <0> OP_GREATERTHANOREQUAL
+    OP_IF
+      // { verify the previous entry is at the head
+        OP_DUP <2> OP_SUB
+        OP_UTXOTOKENCOMMITMENT
+        <1> OP_SPLIT OP_DROP
+        <0b00000001>
+        OP_AND
+        <0b00000001>
+        OP_EQUALVERIFY
+      // }
+      <5> // number of outputs
+    OP_ELSE
+      // { verify the bid/ask side of the orderbook is empty
+        <0x__01__> // ordebook index
+        OP_UTXOTOKENCOMMITMENT
+        <1> OP_SPLIT OP_DROP
+        <5> OP_PICK // push is_bid
+        OP_IF
+          <0b00000001>
+          OP_AND
+          <0b00000001>
+        OP_ELSE
+          <0b00000010>
+          OP_AND
+          <0b00000010>
+        OP_ENDIF
+        OP_EQUALVERIFY
+      // }
+      <4> // number of outputs
+    OP_ENDIF
+  OP_ELSE
+    # should have next entry
+    OP_DUP
+    <0> OP_GREATERTHANOREQUAL
+    OP_IF
+      <0x__05__> // next_entry_index
+      // { verify the previous & next entries are linked
+        OP_OVER <2> OP_SUB
+        OP_UTXOTOKENCOMMITMENT
+        <1> OP_SPLIT OP_SWAP OP_DROP
+        <8> OP_SPLIT OP_DROP
+        // [ ..., previous_entry_ref ]
+        OP_OVER <2> OP_SUB
+        OP_UTXOTOKENCOMMITMENT
+        <1> OP_SPLIT OP_SWAP OP_DROP
+        <8> OP_SPLIT OP_SWAP OP_DROP
+        // [ ..., previous_entry_ref, recorded_previous_ref ]
+        OP_EQUALVERIFY
+      // }
+      <6> // number of outputs
+    OP_ELSE
+      <0x__04__> // next_entry_index
+
+      // { verify the next entry is the tail
+        OP_DUP <2> OP_SUB
+        OP_UTXOTOKENCOMMITMENT
+        <1> OP_SPLIT OP_DROP
+        <0b00000010>
+        OP_AND
+        <0b00000010>
+        OP_EQUALVERIFY
+      // }
+      <5> // number of outputs
+    OP_ENDIF
+
+    // [ ..., new_entry_ref, previous_entry_index, next_entry_index, output_count ]
+    // { verify the next entry's output commitment
+      OP_OVER <2> OP_SUB
+      OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT
+      <8> OP_SPLIT OP_DROP
+      OP_SWAP
+      // remove the tail flag
+      <0b11111101>
+      OP_AND
+      OP_SWAP
+      // [ ..., new_entry_ref, previous_entry_index, next_entry_index, output_count, next_entry_flags, next_entry_ref ]
+      <5> OP_PICK
+      OP_CAT OP_CAT
+      OP_OVER
+      OP_OUTPUTTOKENCOMMITMENT
+      OP_EQUALVERIFY
+    // }
+
+  OP_ENDIF
+
+  // [ ...args, is_bid, new_entry_ref, previous_entry_index, next_entry_index, output_count ]
+
+  // { verify the inputs & outputs only contain permitted items
+    OP_DUP // (output_count - 2 + 2) = max_input_count
+    OP_TXINPUTCOUNT
+    OP_SUB
+    <0>
+    OP_LESSTHANOREQUAL
+    OP_EQUALVERIFY
+    // { two external inputs are allowed, verify none contain the orderbook's token category
+      OP_DUP <2> OP_SUB
+      OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+      <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+      OP_EQUAL OP_NOT OP_VERIFY
+
+      OP_DUP <1> OP_SUB
+      OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+      <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+      OP_EQUAL OP_NOT OP_VERIFY
+    // }
+
+
+    OP_DUP <2> OP_ADD // output_count + 2
+    OP_TXOUTPUTCOUNT
+    OP_SUB
+    <0>
+    OP_LESSTHANOREQUAL
+    OP_EQUALVERIFY
+
+    // allow two change outputs
+    OP_DUP <2> OP_SUB OP_OUTPUTTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    OP_EQUAL OP_NOT
+    OP_VERIFY
+
+    <1> OP_SUB OP_OUTPUTTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    OP_EQUAL OP_NOT
+    OP_VERIFY
+  // }
+
+  // [ ...args, is_bid, new_entry_ref, previous_entry_index, next_entry_index ]
+
+  // validate entries
+
+  // { build entry & its carry's locking scripts
+    // { construct carry's locking
+      // { construct OP_PUSH (token_category + entry_type + entry_ref)
+        <0x__02__>
+        OP_OUTPUTTOKENCATEGORY
+        <0x__02__>
+        OP_OUTPUTTOKENCOMMITMENT
+        <1> OP_SPLIT OP_SWAP <0b11110000> OP_AND OP_SWAP
+        <8> OP_SPLIT OP_DROP
+        OP_CAT OP_CAT
+        OP_SIZE // <push_bytes_opcode>
+        OP_SWAP OP_CAT
+      // }
+      <5> OP_ROLL // roll carry's locking on top
+      OP_CAT
+      IOP_CONSTRUCT_P2SH32
+    // }
+    // [ ..., is_bid, new_entry_ref, previous_entry_index, next_entry_index, carry_locking ]
+
+    // { construct entry's locking
+      // { construct OP_PUSH (auth_pkh)
+        <7> OP_ROLL // second argument
+        OP_SIZE <20> OP_EQUALVERIFY
+        OP_SIZE // <push_bytes_opcode>
+        OP_SWAP
+        OP_CAT
+      // }
+      // { construct OP_PUSH (payout_locking)
+        <7> OP_ROLL // first argument
+        OP_SIZE <32> OP_EQUALVERIFY
+        OP_SIZE // <push_bytes_opcode>
+        OP_SWAP
+        OP_CAT
+      // }
+      // { construct OP_PUSH (carry's locking)
+        <2> OP_PICK
+        OP_SIZE // <push_bytes_opcode>
+        OP_SWAP
+        OP_CAT
+      // }
+      OP_CAT
+      <6> OP_ROLL
+      OP_CAT
+      IOP_CONSTRUCT_P2SH32
+    // }  
+  // }
+
+  // [ is_bid, new_entry_ref, previous_entry_index, next_entry_index, carry_locking, entry_locking ]
+
+  <0x__02__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+  <0x__01__> OP_UTXOTOKENCATEGORY
+  <0x__02__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+  <1000> // bch locked in the entry, will be sent to the payout address once deleted
+  <0x__02__> OP_UTXOVALUE
+  OP_GREATERTHANOREQUAL
+  OP_VERIFY
+
+  // [ is_bid, new_entry_ref, previous_entry_index, next_entry_index, carry_locking ]
+
+  // { validate carry
+
+    <0x__03__> OP_OUTPUTBYTECODE
+    OP_EQUALVERIFY
+
+    <0x__03__> OP_OUTPUTTOKENCOMMITMENT
+    <0>
+    OP_EQUALVERIFY
+
+    // { push min token amount for an entry
+      <0x__00__> OP_UTXOTOKENCOMMITMENT
+      <2> OP_SPLIT OP_SWAP OP_DROP
+      <4> OP_SPLIT OP_DROP
+      OP_BIN2NUM
+    // }
+    // { push carry's token category
+      <0x__01__> OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT OP_SWAP OP_DROP
+      <32> OP_SPLIT OP_DROP
+    // }
+    <0x__03__> OP_OUTPUTTOKENCATEGORY
+    // [ ..., carry_min_token_amount, expected_carry_category, carry_category ]
+    <4> OP_PICK // is_bid
+    OP_IF
+      OP_DUP
+      <0>
+      OP_EQUAL
+      // [ ..., carry_min_token_amount, expected_category, carry_category, is_category_null ]
+      OP_SWAP OP_ROT
+      // [ ..., carry_min_token_amount, is_category_null, carry_category, expected_category ]
+      OP_EQUAL
+      OP_OR
+      OP_VERIFY
+
+      // { push bid price (the entry's ref block)
+        <3> OP_PICK
+        <4> OP_SPLIT OP_DROP
+        OP_BIN2NUM
+      // }
+      // [ ..., carry_min_token_amount, bid_price ]
+      OP_MUL
+      <0x__03__> OP_OUTPUTVALUE
+      OP_GREATERTHANOREQUAL
+      OP_VERFIY
+
+    OP_ELSE
+      OP_EQUALVERIFY
+
+      <0x__03__> OP_OUTPUTTOKENAMOUNT
+      OP_GREATERTHANOREQUAL
+      OP_VERFIY
+
+    OP_ENDIF
+
+    // verify the bch amount & token amount is in the entry's commitment
+    <0x__02__> // new entry index
+    OP_OUTPUTTOKENCOMMITMENT
+    <17> OP_SPLIT OP_SWAP OP_DROP
+    OP_SIZE <20> OP_EQUALVERIFY
+    <8> OP_SPLIT
+    <8> OP_SPLIT
+    // [ recorded_bch_amount, recorded_token_amount, recorded_fee ]
+    // { verify the recorded_fee matches the fee registered in add-entry utxo
+      <0x__00__> OP_UTXOTOKENCOMMITMENT
+      <6> OP_SPLIT OP_SWAP OP_DROP
+      <4> OP_SPLIT OP_DROP
+      // [ ..., recorded_fee, orderbook_fee ]
+      OP_EQUALVERIFY
+    // }
+
+    OP_BIN2NUM
+    <0x__03__> OP_OUTPUTTOKENAMOUNT
+    OP_EQUALVERIFY
+
+    OP_BIN2NUM
+    <0x__03__> OP_OUTPUTVALUE
+    OP_EQUALVERIFY
+
+  // }
+
+  <3> OP_PICK // push is_bid
+  OP_IF
+    <0b00100000> // bid entry type
+  OP_ELSE
+    <0b00110000> // ask entry type
+  OP_ENDIF
+  OP_DUP
+  // [ is_bid, new_entry_ref, previous_entry_index, next_entry_index, entry_type, entry_type ]
+  <2> OP_PICK
+  OP_DUP <0> OP_GREATERTHANOREQUAL
+  OP_IF
+    <0x__01__> OP_UTXOTOKENCATEGORY
+    OP_ROT OP_ROT
+    OP_DUP <2> OP_SUB OP_SWAP
+    // [ ..., category, entry_type, entry_input_index, entry_output_index ]
+    IOP_VALIDATE_ORDERBOOK_ENTRY_EXCLUDING_COMMITMENT
+  OP_ELSE
+    OP_DROP OP_DROP
+  OP_ENDIF
+
+  // [ is_bid, new_entry_ref, previous_entry_index, next_entry_index, entry_type ]
+  <2> OP_PICK
+  OP_DUP <0> OP_GREATERTHANOREQUAL
+  OP_IF
+    <0x__01__> OP_UTXOTOKENCATEGORY
+    OP_ROT OP_ROT
+    OP_DUP <2> OP_SUB OP_SWAP
+    // [ ..., category, entry_type, entry_input_index, entry_output_index ]
+    IOP_VALIDATE_ORDERBOOK_ENTRY_EXCLUDING_COMMITMENT
+  OP_ELSE
+    OP_DROP OP_DROP
+  OP_ENDIF
+
+  // [ is_bid, new_entry_ref, previous_entry_index, next_entry_index ]
+  // apply constraints
+  // { is first entry
+    OP_DUP OP_OVER
+    <0> OP_LESSTHAN
+    OP_SWAP
+    <0> OP_LESSTHAN
+    OP_AND
+  // }
+  OP_IF
+    // is the first entry
+    // allow any block at index zero
+    OP_DROP OP_DROP
+    <4> OP_SPLIT
+    // [ is_bid new_entry_ref_block, new_entry_ref_index ]
+    <0>
+    OP_EQUALVERIFY // new_entry_ref_index should be zero
+    OP_DROP // no constraint for the new_entry_ref_block
+    OP_DROP // remove is_bid
+  OP_ELSE
+    OP_DUP
+    <0> OP_GREATERTHAN
+    OP_IF
+      <3> OP_PICK <3> OP_PICK OP_ROT
+      IOP_ADD_ENTRY_SUB_VERIFY_NEXT_ENTRY_CONSTRAINTS
+    OP_ELSE
+      OP_DROP
+    OP_ENDIF
+    // the previous entry should determine the new_entry_ref_index
+    OP_DUP
+    <0> OP_GREATERTHAN
+    OP_IF
+      IOP_ADD_ENTRY_SUB_VERIFY_PREVIOUS_ENTRY_CONSTRAINTS
+    OP_ELSE
+      OP_DROP
+      <4> OP_SPLIT
+      <0>
+      OP_EQUALVERIFY // new_entry_ref_index should be zero
+      OP_DROP // no constraint for the new_entry_ref_block
+      OP_DROP // drop is_bid
+    OP_ENDIF
+  OP_ENDIF
+
+OP_ENDIF
+
+
+

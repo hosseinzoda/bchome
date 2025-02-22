@@ -1,0 +1,194 @@
+// argument#0 transaction summary
+IOP_ORDERBOOK_CHECK_HAS_DELEGATED_PROGRAM
+OP_NOTIF
+  // not a delegated program
+  // execute
+
+  OP_INPUTINDEX <0> OP_EQUALVERIFY
+
+  // [ transation_summary ]
+  // validate the existance of entries
+  OP_DUP
+  <1> OP_SPLIT // summary flags
+  <2> OP_SPLIT // bid_start_index
+  <2> OP_SPLIT // bid_end_index
+  <8> OP_SPLIT // bid_bch_balance
+  <8> OP_SPLIT // bid_token_balance
+  <8> OP_SPLIT // bids_fee
+  <2> OP_SPLIT // ask_start_index
+  <2> OP_SPLIT // ask_end_index
+  <8> OP_SPLIT // ask_bch_balance
+  <8> OP_SPLIT // ask_token_balance
+  <8> OP_SPLIT // asks_fee
+  OP_SIZE <0> OP_EQUALVERIFY OP_DROP
+
+  <10> OP_ROLL // roll summary flags
+  // [ ..., summary_flags ]
+
+  // { summary_flags checks
+    OP_DUP
+    <0b00000011>
+    OP_AND
+    <0b00000011>
+    OP_EQUAL OP_NOT OP_VERIFY // both bids & asks _are_completed cannot be active
+
+
+    OP_DUP
+    <0b00000001>
+    OP_AND
+    OP_IF
+      // bids_are_completed
+    OP_ELSE
+      // asks_are_completed should be active
+      OP_DUP
+      <0b00000010>
+      OP_AND
+      <0b00000010>
+      OP_EQUALVERIFY
+    OP_ENDIF
+  // }
+
+  <10> OP_ROLL // bid_start_index
+  OP_BIN2NUM
+  OP_DUP
+  <1>
+  OP_EQUAL
+  OP_IF
+    <10> OP_PICK <1> OP_ADD // bid_end_index + 1
+    <7> OP_PICK // ask_start_index
+    OP_EQUALVERIFY
+
+    <0b00100000> // bid entry type
+    OP_SWAP
+    <11> OP_ROLL OP_BIN2NUM // bid_end_index
+    <11> OP_ROLL OP_BIN2NUM // bid_bch_balance
+    <11> OP_ROLL OP_BIN2NUM // bid_token_balance
+    <11> OP_ROLL OP_BIN2NUM // bid_fee_paid
+    IOP_ORDERBOOK_VERIFY_ENTRY_RANGE_AND_STATE
+    // [ ..., bid_list_becomes_empty ]
+
+    <0b00110000> // bid entry type
+    <7> OP_ROLL OP_BIN2NUM // ask_start_index
+    <7> OP_ROLL OP_BIN2NUM // ask_end_index
+    <7> OP_ROLL OP_BIN2NUM // ask_bch_balance
+    <7> OP_ROLL OP_BIN2NUM // ask_token_balance
+    <7> OP_ROLL OP_BIN2NUM // ask_fee_paid
+    IOP_ORDERBOOK_VERIFY_ENTRY_RANGE_AND_STATE
+  OP_ELSE
+    // verify type_b is located right after type_a
+    OP_DUP // bid_start_index
+    <6> OP_PICK <1> OP_ADD // ask_end_index + 1
+    OP_EQUALVERIFY
+
+    <0b00110000> // ask entry type
+    <7> OP_ROLL OP_BIN2NUM // ask_start_index
+    <7> OP_ROLL OP_BIN2NUM // ask_end_index
+    <7> OP_ROLL OP_BIN2NUM // ask_bch_balance
+    <7> OP_ROLL OP_BIN2NUM // ask_token_balance
+    <7> OP_ROLL OP_BIN2NUM // ask_fee_paid
+
+    IOP_ORDERBOOK_VERIFY_ENTRY_RANGE_AND_STATE
+    // [ ..., bid_start_index, ask_list_becomes_empty ]
+
+    <0b00100000> // bid entry type
+    OP_ROT // roll bid_start_index on top
+    <7> OP_ROLL OP_BIN2NUM // bid_end_index
+    <7> OP_ROLL OP_BIN2NUM // bid_bch_balance
+    <7> OP_ROLL OP_BIN2NUM // bid_token_balance
+    <7> OP_ROLL OP_BIN2NUM // bid_fee_paid
+    IOP_ORDERBOOK_VERIFY_ENTRY_RANGE_AND_STATE
+    OP_SWAP
+    // [ ..., bid_list_becomes_empty, ask_list_becomes_empty ]
+  OP_ENDIF
+  // [ ..., bid_list_becomes_empty, ask_list_becomes_empty ]
+
+  // verify orderbook's output commitment
+  OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT
+  <1> OP_SPLIT
+
+  OP_SWAP // flags on top
+  <0b1111000> // clear all flags
+  OP_AND
+  <3> OP_ROLL // bid_list_becomes_empty
+  OP_IF
+    <0b00000001>
+    OP_OR
+  OP_ENDIF
+  <2> OP_ROLL // ask_list_becomes_empty
+  OP_IF
+    <0b00000010>
+    OP_OR
+  OP_ENDIF
+
+  OP_SWAP
+  OP_CAT
+  OP_INPUTINDEX OP_OUTPUTTOKENCOMMITMENT
+  OP_EQUALVERIFY
+  
+
+  // [ transation_summary ]
+  
+  // verify the token balance is zero
+  // { push token balance
+    OP_DUP
+    <14> OP_SPLIT OP_NIP
+    <8> OP_SPLIT // bid_token_balance
+    <20> OP_SPLIT OP_NIP
+    <8> OP_SPLIT OP_DROP // ask_token_balance
+    OP_BIN2NUM OP_SWAP OP_BIN2NUM
+    OP_ADD
+  // }
+  <0>
+  OP_EQUALVERIFY
+
+
+  // pay the txfee and collect the fees
+  // push balance
+  // { push bch balance
+    OP_DUP
+    <6> OP_SPLIT OP_NIP
+    <8> OP_SPLIT // bid_bch_balance
+    <20> OP_SPLIT OP_NIP
+    <8> OP_SPLIT OP_DROP // ask_bch_balance
+    OP_BIN2NUM OP_SWAP OP_BIN2NUM
+    OP_ADD
+  // }
+  OP_DUP <0> OP_GREATERTHANOREQUAL OP_VERIFY
+  // [ transation_summary, bch_balance ]
+  // verify bch_balance >= paid_fees
+  // { push paid_fees
+    OP_SWAP
+    <22> OP_SPLIT OP_NIP
+    <8> OP_SPLIT // bids_fee
+    <20> OP_SPLIT OP_NIP
+    <8> OP_SPLIT OP_DROP // asks_fee
+    OP_BIN2NUM OP_SWAP OP_BIN2NUM
+    OP_ADD
+  // }
+  // [  bch_balance, paid_fees ]
+  OP_OVER OP_GREATERTHANOREQUAL OP_VERIFY
+  OP_INPUTINDEX OP_UTXOVALUE
+  OP_ADD
+  // { push txfee per io
+    OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT
+    <33> OP_SPLIT OP_NIP
+    // OP_SIZE <4> OP_EQUALVERIFY
+    OP_BIN2NUM
+  // }
+  OP_TXOUTPUTCOUNT OP_MUL
+  // [ bch_balance, txfee ]
+  OP_SUB
+  OP_DUP <0> OP_GREATERTHAN
+  OP_INPUTINDEX OP_OUTPUTVALUE
+  OP_EQUALVERIFY
+  
+
+  OP_INPUTINDEX OP_UTXOTOKENCATEGORY
+  OP_INPUTINDEX OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+
+  OP_INPUTINDEX OP_UTXOBYTECODE
+  OP_INPUTINDEX OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+
+OP_ENDIF

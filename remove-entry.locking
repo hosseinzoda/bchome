@@ -1,0 +1,320 @@
+// program io index =  0x__00__
+// orderbook io index =  0x__01__
+// the entry input index =  0x__02__
+// the entry's carry io index =  0x__03__
+// previous entry io index =  null | 0x__04__
+// next entry io index =  null | 0x__04__ | 0x__05__
+
+// this method assumes the entry's locking will authenticate and payout the carry
+
+OP_INPUTINDEX <0x__00__> OP_EQUALVERIFY
+// { validate add-entry program utxo
+  <0x__00__> OP_UTXOTOKENCATEGORY
+  <0x__00__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+  <0x__00__> OP_UTXOTOKENCOMMITMENT
+  <0x__00__> OP_OUTPUTTOKENCOMMITMENT
+  OP_EQUALVERIFY
+  <0x__00__> OP_UTXOBYTECODE
+  <0x__00__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+// }
+
+// { validate order-book-utxo
+  // { validate the category & type of the utxo
+    <0x__00__> OP_UTXOTOKENCATEGORY
+    <0x__01__> OP_UTXOTOKENCATEGORY
+    OP_EQUALVERIFY
+
+    // verify the utxo type
+    <0x__01__> OP_UTXOTOKENCOMMITMENT
+    <1> OP_SPLIT OP_DROP
+    <0b11110000>
+    OP_AND
+    <0b00010000> // orderbook
+    OP_EQUALVERIFY
+  // }
+  <0x__01__> OP_UTXOTOKENCATEGORY
+  <0x__01__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+  <0x__01__> OP_UTXOBYTECODE
+  <0x__01__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+  <0x__01__> OP_UTXOVALUE
+  <0x__01__> OP_OUTPUTVALUE
+  OP_EQUALVERIFY
+// }
+
+<0x__01__> OP_UTXOTOKENCATEGORY
+<0x__02__> OP_UTXOTOKENCATEGORY
+OP_EQUALVERIFY
+
+// { verify this entry is deleted
+  <0x__02__> OP_OUTPUTBYTECODE
+  <OP_RETURN>
+  OP_EQUALVERIFY
+
+  <0x__02__> OP_OUTPUTTOKENCATEGORY
+  <0>
+  OP_EQUALVERIFY
+
+  <0x__02__> OP_OUTPUTVALUE
+  <0>
+  OP_EQUALVERIFY
+// }
+
+<0x__02__> // the entry index
+OP_UTXOTOKENCOMMITMENT
+<1> OP_SPLIT
+<8> OP_SPLIT
+<8> OP_SPLIT OP_DROP
+
+// [ flags, entry_ref, previous_entry_ref ]
+
+OP_ROT
+
+OP_DUP
+<0b00000010> // tail flag
+OP_AND
+<0b00000010>
+OP_EQUAL
+
+OP_OVER
+<0b00000001> // head flag
+OP_AND
+<0b00000001>
+OP_EQUAL
+
+OP_IF
+  OP_IF
+    <-1> // previous_entry = null
+    <3>
+  OP_ELSE
+    <0x__04__> // previous_entry
+    <4>
+  OP_ENDIF
+  <-1> // next_entry = null
+OP_END
+  OP_IF
+    <-1> // previous_entry = null
+    <5>
+  OP_ELSE
+    <0x__05__> // previous_entry
+    <6>
+  OP_ENDIF
+  <0x__04__> // next_entry
+OP_ENDIF
+OP_ROT OP_ROT
+// [ ..., flags, next_entry_index, previous_entry_index, io_count ]
+
+// { verify the inputs & outputs only contain permitted items
+
+OP_DUP <1> OP_ADD // (io_count + 2) = max_input_count
+  OP_TXINPUTCOUNT
+  OP_SUB
+  <0>
+  OP_LESSTHANOREQUAL
+  OP_EQUALVERIFY
+  // { two external inputs are allowed, verify none contain the orderbook's token category
+    OP_DUP <2> OP_SUB
+    OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    OP_EQUAL OP_NOT OP_VERIFY
+
+    OP_DUP <1> OP_SUB
+    OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    OP_EQUAL OP_NOT OP_VERIFY
+  // }
+  
+  OP_DUP <2> OP_ADD // output_count + 2
+  OP_TXOUTPUTCOUNT
+  OP_SUB
+  <0>
+  OP_LESSTHANOREQUAL
+  OP_EQUALVERIFY
+
+  // allow two change outputs
+  OP_DUP <2> OP_SUB OP_OUTPUTTOKENCATEGORY <32> OP_SPLIT OP_DROP
+  <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+  OP_EQUAL OP_NOT
+  OP_VERIFY
+
+  <1> OP_SUB OP_OUTPUTTOKENCATEGORY <32> OP_SPLIT OP_DROP
+  <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+  OP_EQUAL OP_NOT
+  OP_VERIFY
+
+// }
+
+//  [ ..., flags, next_entry_index, previous_entry_index ]
+
+<2> OP_PICK
+IOP_PUSH_AND_VERIFY_ORDERBOOK_ENTRY_TYPE
+<0b00100000> // bid order entry
+OP_EQUAL // push is_bid
+OP_ROT OP_ROT
+
+// [ ..., flags, is_bid, next_entry_index, previous_entry_index ]
+OP_2DUP
+OP_DUP <-1> OP_EQUAL
+OP_ROT OP_ROT OP_EQUAL
+OP_AND
+OP_IF
+  // last entry
+  // verify the orderbook's bid/ask list is empty
+  OP_2DROP
+  <0x__01__> OP_UTXOTOKENCATEGORY // orderbook commitment
+  <1> OP_SPLIT OP_SWAP
+  OP_SWAP // is_bid
+  OP_IF
+    <0b00000001>
+  OP_ELSE
+    <0b00000010>
+  OP_ENDIF
+  OP_OR
+  OP_SWAP
+  OP_CAT
+  <0x__01__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+OP_ELSE
+  // [ ..., flags, is_bid, next_entry_index, previous_entry_index ]
+  <2> OP_ROLL OP_DROP // remove is_bid
+  // [ ..., flags, next_entry_index, previous_entry_index ]
+  OP_DUP
+  <0>
+  OP_GREATERTHAN
+  OP_IF
+    // verify previous_entry
+    // { validate the category & type of the utxo
+      OP_DUP OP_UTXOTOKENCATEGORY
+      <0x__01__> OP_UTXOTOKENCATEGORY
+      OP_EQUALVERIFY
+
+      // verify the utxo type
+      OP_DUP OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT OP_SWAP
+
+      // verify type
+      OP_DUP <0b11110000> OP_AND
+      <5> OP_PICK <0b11110000> OP_AND // this entry's type
+      OP_EQUALVERIFY
+
+      <3> OP_PICK // next_entry_index
+      <-1> OP_EQUAL
+      OP_IF
+        // this entry is at the head, once removed the previous entry is at the head
+        <0b00000001>
+        OP_OR // add the head flag
+      OP_ENDIF
+
+      OP_SWAP
+
+      // { verify this entry points to the previous_entry
+        OP_DUP
+        <8> OP_SPLIT OP_DROP
+        // { push this entry's previous_entry_ref
+          <0x__02__> // the entry index
+          OP_UTXOTOKENCOMMITMENT
+          <1> OP_SPLIT OP_NIP
+          <8> OP_SPLIT OP_NIP
+          <8> OP_SPLIT OP_DROP
+        // }
+        OP_EQUALVERIFY
+      // }
+
+      OP_CAT
+      // [ ..., previous_entry_index, expected_commitment ]
+      OP_OVER OP_OUTPUTTOKENCOMMITMENT
+      OP_EQUALVERIFY
+    // }
+    OP_DUP OP_UTXOTOKENCATEGORY
+    OP_OVER OP_OUTPUTTOKENCATEGORY
+    OP_EQUALVERIFY
+    OP_DUP OP_OUTPUTBYTECODE
+    OP_OVER OP_UTXOBYTECODE
+    OP_EQUALVERIFY
+    OP_DUP OP_UTXOVALUE
+    OP_OVER OP_OUTPUTVALUE
+    OP_EQUALVERIFY
+
+  OP_ENDIF
+
+  OP_SWAP
+  OP_DUP
+  <0>
+  OP_GREATERTHAN
+  OP_IF
+    // verify next_entry
+    // [ ..., flags, previous_entry_index, next_entry_index ]
+    // { validate the category & type of the utxo
+      OP_DUP OP_UTXOTOKENCATEGORY
+      <0x__01__> OP_UTXOTOKENCATEGORY
+      OP_EQUALVERIFY
+
+      // verify the utxo type
+      OP_DUP OP_UTXOTOKENCOMMITMENT
+      <1> OP_SPLIT
+
+      // { verify next entry points to this entry
+        OP_DUP
+        <8> OP_SPLIT OP_NIP
+        <8> OP_SPLIT OP_DROP
+        // { push this entry's entry_ref
+          <0x__02__> // the entry index
+          OP_UTXOTOKENCOMMITMENT
+          <1> OP_SPLIT OP_NIP
+          <8> OP_SPLIT OP_DROP
+        // }
+        OP_EQUALVERIFY
+      // }
+
+      OP_SWAP
+      // [ ..., flags, previous_entry_index, next_entry_index, next_entry_commitment__1, next_entry_flags ]
+      // verify type
+      OP_DUP <0b11110000> OP_AND
+      <5> OP_PICK <0b11110000> OP_AND // this entry's type
+      OP_EQUALVERIFY
+
+      <3> OP_PICK // previous_entry_index
+      <-1> OP_EQUAL
+      OP_IF
+        // this entry is at the tail, once removed the next entry is at the tail
+        <0b00000010>
+        OP_OR // add the tail flag
+        OP_SWAP OP_CAT // expected_commitment
+      OP_ELSE
+        // the next entry should point to the previous entry as its previous_entry
+        OP_SWAP
+        <8> OP_SPLIT
+        <8> OP_SPLIT OP_NIP
+        // { push the previous_entry_ref
+          <5> OP_PICK // previous_entry_index
+          OP_UTXOTOKENCOMMITMENT
+          <1> OP_SPLIT OP_NIP
+          <8> OP_SPLIT OP_DROP
+        // }
+        OP_SWAP
+        OP_CAT OP_CAT // expected_commitment__1
+        OP_CAT // expected_commitment
+      OP_ENDIF
+
+      // [ ..., previous_entry_index, expected_commitment ]
+      OP_OVER OP_OUTPUTTOKENCOMMITMENT
+      OP_EQUALVERIFY
+    // }
+    OP_DUP OP_UTXOTOKENCATEGORY
+    OP_OVER OP_OUTPUTTOKENCATEGORY
+    OP_EQUALVERIFY
+    OP_DUP OP_UTXOBYTECODE
+    OP_OVER OP_OUTPUTBYTECODE
+    OP_EQUALVERIFY
+    OP_DUP  OP_UTXOVALUE
+    OP_OVER OP_OUTPUTVALUE
+    OP_EQUALVERIFY
+
+  OP_ENDIF 
+ 
+OP_ENDIF
+
+

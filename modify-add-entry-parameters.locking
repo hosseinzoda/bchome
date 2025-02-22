@@ -1,0 +1,66 @@
+<0x0000...0000> // owner's pkh
+// This program allows the owner of the orderbook to deposit/withdraw bch and set the txfee_per_io
+// program io index =  0x__00__
+// orderbook =  0x__01__
+
+// arguments: (signature, public_key, min_token_amount, trade_fee_fraction)
+
+// { authenticate
+  <4> OP_ROLL <4> OP_ROLL // roll the auth arguments on top [ signature, public_key ]
+  OP_DUP OP_HASH160 OP_OVER OP_EQUALVERIFY OP_CHECKSIGVERIFY
+// }
+
+OP_INPUTINDEX <0x__00__> OP_EQUALVERIFY
+// { validate this program utxo
+  <0x__00__> OP_UTXOTOKENCATEGORY
+  <0x__00__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+  <0x__00__> OP_UTXOTOKENCOMMITMENT
+  <0x__00__> OP_OUTPUTTOKENCOMMITMENT
+  OP_EQUALVERIFY
+  <0x__00__> OP_UTXOBYTECODE
+  <0x__00__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+// }
+
+// { validate add-entry utxo
+
+  <0x__00__> OP_UTXOTOKENCATEGORY
+  <32> OP_SPLIT OP_DROP <0x02> OP_CAT // the token category with minting capability
+  <0x__01__> OP_UTXOTOKENCATEGORY
+  OP_EQUALVERIFY
+
+  <0x__01__> OP_UTXOTOKENCOMMITMENT
+  <1> OP_SPLIT OP_SWAP
+  <0b11110000>
+  OP_AND
+  <0b01000000> // program utxo type
+  OP_EQUALVERIFY
+  <1> OP_SPLIT OP_DROP // program id
+  <98> // add-entry program id
+  OP_EQUALVERIFY
+
+  // [ min_token_amount, trade_fee_fraction ]
+  // verify the new orderbook commitment
+  <0x__01__> OP_UTXOTOKENCOMMITMENT
+  <2> OP_SPLIT OP_DROP
+  OP_ROT OP_SIZE <4> OP_EQUALVERFIY // encoded 4 bytes integer
+  OP_ROT OP_SIZE <4> OP_EQUALVERIFY // the fraction is two concatinated integers each having 4 bytes, first integer is the numerator second is the denominator
+  OP_CAT OP_CAT
+  <0x__01__> OP_OUTPUTTOKENCOMMITMENT
+  OP_EQUALVERIFY
+
+  <0x__01__> OP_UTXOTOKENCATEGORY
+  <0x__01__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+
+  <0x__01__> OP_UTXOBYTECODE
+  <0x__01__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+
+  <1000>
+  <0x__01__> OP_OUTPUTVALUE
+  OP_GREATERTHANOREQUAL
+// }
+
+

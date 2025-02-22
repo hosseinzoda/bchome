@@ -1,0 +1,26 @@
+// [ is_bid, new_entry_ref, previous_entry_index ]
+// verify previous entry constraints
+OP_OUTPUTTOKENCOMMITMENT
+<1> OP_SPLIT OP_SWAP O_DROP
+<8> OP_SPLIT OP_DROP
+<4> OP_SPLIT
+// [ is_bid, new_entry_ref, previous_entry_ref_block, previous_entry_ref_index ]
+OP_ROT
+<4> OP_SPLIT
+// [ is_bid, previous_entry_ref_block, previous_entry_ref_index, new_entry_ref_block, new_entry_ref_index ]
+OP_DROP // no constraint for new_entry_ref_index, previous entry determines it
+OP_SWAP
+<0>
+OP_EQUALVERFIY // previous_entry_ref_index should be equal to zero
+// [ is_bid, previous_entry_ref_block, new_entry_ref_block ]
+OP_SUB
+<0>
+OP_SWAP
+OP_IF
+  // is bid, sort in asc order
+  OP_LESSTHAN
+OP_ELSE
+  // is ask, sort in desc order
+  OP_GREATERTHAN
+OP_ENDIF
+OP_VERIFY

@@ -1,0 +1,7 @@
+// [ redeem_script ]
+OP_HASH256
+<OP_HASH256>
+OP_SWAP
+<OP_EQUAL>
+OP_CAT
+OP_CAT

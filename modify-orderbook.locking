@@ -1,0 +1,56 @@
+<0x0000...0000> // owner's pkh
+// This program allows the owner of the orderbook to deposit/withdraw bch and set the txfee_per_io
+// program io index =  0x__00__
+// orderbook =  0x__01__
+
+// arguments: (signature, public_key, txfee_per_io)
+
+// { authenticate
+  <3> OP_ROLL <3> OP_ROLL // roll the auth arguments at top [ signature, public_key ]
+  OP_DUP OP_HASH160 OP_OVER OP_EQUALVERIFY OP_CHECKSIGVERIFY
+// }
+
+OP_INPUTINDEX <0x__00__> OP_EQUALVERIFY
+// { validate add-entry program utxo
+  <0x__00__> OP_UTXOTOKENCATEGORY
+  <0x__00__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+  <0x__00__> OP_UTXOTOKENCOMMITMENT
+  <0x__00__> OP_OUTPUTTOKENCOMMITMENT
+  OP_EQUALVERIFY
+  <0x__00__> OP_UTXOBYTECODE
+  <0x__00__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+// }
+
+// { validate order-book-utxo
+  <0x__00__> OP_UTXOTOKENCATEGORY
+  <32> OP_SPLIT OP_DROP <0x01> OP_CAT
+  <0x__01__> OP_UTXOTOKENCATEGORY
+  OP_EQUALVERIFY
+
+  // verify the new orderbook commitment
+  <0x__01__> OP_UTXOTOKENCOMMITMENT
+  <1> OP_SPLIT
+  <32> OP_SPLIT
+  <4> OP_SPLIT OP_NIP
+  <3> OP_ROLL // roll txfee_per_io
+  <4> OP_NUM2BIN
+  OP_SWAP OP_CAT OP_CAT OP_CAT
+  <0x__01__> OP_OUTPUTTOKENCOMMITMENT
+  OP_EQUALVERIFY
+
+  <0x__01__> OP_UTXOTOKENCATEGORY
+  <0x__01__> OP_OUTPUTTOKENCATEGORY
+  OP_EQUALVERIFY
+
+  <0x__01__> OP_UTXOBYTECODE
+  <0x__01__> OP_OUTPUTBYTECODE
+  OP_EQUALVERIFY
+
+  <1000>
+  <0x__01__> OP_OUTPUTVALUE
+  OP_GREATERTHANOREQUAL
+// }
+
+
