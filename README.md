@@ -62,13 +62,14 @@ Every entry has a carry utxo which holds the bch amount & token amount of the or
 
 Entry's commitment data structure.
 
-| Fields               | Description                                                                                                                                                   |
-|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| UTXO Type & Flags    | (1 byte) Highest four bits represent the type of utxo (`bid-entry = 0b00100000`, `ask-entry = 0b00110000`), The remaining are the flags of the current entry, |
-|                      | There are two flags, `0b00000001` flag indicates that entry is at the head of the list and `0b00000010` flag is for the tail.                                 |
-| Block or Price       | (4 bytes) The value is the price of the limit order, And it also represents a block in a sorted linked list.                                                  |
-| Block index          | (4 bytes) The index of the entry at the current block. (`block + index`) is used as the unique entry's reference.                                             |
-| Carry's bch amount   | (8 bytes) The bch amount in the carry utxo.                                                                                                                   |
-| Carry's token amount | (8 bytes) The token amount in the carry utxo.                                                                                                                 |
-| Fee                  | (4 bytes) A fraction used to calculate the exchange fee.                                                                                                      |
+| Fields                   | Description                                                                                                                                                   |
+|--------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| UTXO Type & Flags        | (1 byte) Highest four bits represent the type of utxo (`bid-entry = 0b00100000`, `ask-entry = 0b00110000`), The remaining are the flags of the current entry, |
+|                          | There are two flags, `0b00000001` flag indicates that entry is at the head of the list and `0b00000010` flag is for the tail.                                 |
+| Block or Price           | (4 bytes) The value is the price of the limit order, And it also represents a block in a sorted linked list.                                                  |
+| Block index              | (4 bytes) The index of the entry at the current block. (`block + index`) is used as the unique entry's reference.                                             |
+| Previous entry reference | (8 bytes) (`block + index`) of the previous entry.                                                                                                            |
+| Carry's bch amount       | (8 bytes) The bch amount in the carry utxo.                                                                                                                   |
+| Carry's token amount     | (8 bytes) The token amount in the carry utxo.                                                                                                                 |
+| Fee                      | (4 bytes) A fraction used to calculate the exchange fee.                                                                                                      |
 
