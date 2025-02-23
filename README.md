@@ -7,17 +7,19 @@ A proof-of-concept implementation of a BCH order matching engine.
 
 # Summary
 
-Set limit orders to buy or sell a token, The order will be stored in a list, Once the matching engine finds a match it'll perform the exchange then sends out the payout to the given bch address.
+Set limit orders to buy or sell a token, When the matching engine finds a match it'll fill the orders with the ability to partially fill orders and once orders are fully filled it deposits the payout with instantly finality. Users have the ability to withdraw their order at anytime even if it has been partially filled.
 
-The exchange uses two sorted linked lists to manage the bids & asks of the orderbook. Bids are sorted in descending order where the head of the list has the order with the highest bid and asks are sorted in ascending order, The head is the sell order at the lowest price.
+The exchange uses two sorted linked lists to manage the bids & asks of the orderbook. Bids are sorted in descending order where the head of the list has the highest bid and the head of asks has the lowest price.
 
-Orders are sorted in two nested orders. First is by the price and then sorted by the order the entry has been included in the list to enable first-come-first-served function. Meaning if two users set an order at the same price, The matching engine fills the first inserted entry, once fully filled the second will be filled and so on.
+There are two nested sorting applied to both lists. First is the ask/bid price and the second is the order in which the entry has been included in the blockchain to achieve first-come-first-served exchange. Meaning if two bid orders are set at the same price, The matching engine first fills the order that has came first.
 
-`add-entry.locking` & `remove-entry.locking` programs verify the entries are inserted and removed correctly to maintain the validity of the ordered linked list.
+`add-entry.locking` & `remove-entry.locking` programs verify the entries are inserted and removed in the right place at the sorted lists, Such that the sorting rules of the list will remain valid at all times.
 
 # The orderbook category
 
-Upon the creation of the orderbook a new category should be created representing mutliple utxo types, Such as `utxo_program`, `orderbook`, `bid-entry`, `ask-entry`.
+Upon the creation of the orderbook a new category should be created, Multiple types of utxos exist in this category, Such as `utxo_program`, `orderbook`, `bid-entry`, `ask-entry`.
+A predefined script is assigned to each of the utxo types. Such that all utxos with this category are bound to the rules of the orderbook to maintain the validity of the data in stores in the blockchain.
+The matching engine can only function as expected if all inputs with category are valid.
 
 ## Programs
 

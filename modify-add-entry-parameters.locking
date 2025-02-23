@@ -63,4 +63,32 @@ OP_INPUTINDEX <0x__00__> OP_EQUALVERIFY
   OP_GREATERTHANOREQUAL
 // }
 
+// { verify the inputs & outputs only contain permitted items
+  <2> // io_count
+  OP_DUP <1> OP_ADD // (io_count + 1) = max_input_count
+  OP_TXINPUTCOUNT
+  OP_SUB
+  <0>
+  OP_LESSTHANOREQUAL
+  OP_EQUALVERIFY
+  // { one external input is allowed, verify none contain the orderbook's token category
+    OP_DUP <1> OP_SUB
+    OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+    OP_EQUAL OP_NOT OP_VERIFY
+  // }
+  
+  OP_DUP <1> OP_ADD // output_count + 1
+  OP_TXOUTPUTCOUNT
+  OP_SUB
+  <0>
+  OP_LESSTHANOREQUAL
+  OP_EQUALVERIFY
 
+  // allow one change outputs
+  <1> OP_SUB OP_OUTPUTTOKENCATEGORY <32> OP_SPLIT OP_DROP
+  <0x__01__> OP_UTXOTOKENCATEGORY <32> OP_SPLIT OP_DROP
+  OP_EQUAL OP_NOT
+  OP_VERIFY
+
+// }
